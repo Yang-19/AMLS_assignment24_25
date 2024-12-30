@@ -142,17 +142,50 @@ print(classification_report(test_label,y_pred))
 auc = roc_auc_score(test_label, y_pred)
 print(f"AUC: {auc:.4f}")
 
-#For the implemented logistic regression method both with and without regularization
+#For the implemented logistic regression method with regularization
 train_label_R=train_label.ravel()
 
 theta=logistic_regression_regularized(train_data_flat/255,train_label_R)
 y_pred_1=predict_labels(test_data_flat/255,theta)
 
-print("New confusion matrix")
+print("Confusion matrix with regularization")
 print(confusion_matrix(test_label, y_pred_1))
-print('New accuracy on test set: '+str(accuracy_score(test_label,y_pred_1)))
-print("New classification report")
+print('Accuracy of logistic regression with regularization on test set: '+str(accuracy_score(test_label,y_pred_1)))
+print(" Classification report of logistic regression with regularization")
 print(classification_report(test_label,y_pred_1))
 # Compute AUC
-auc = roc_auc_score(test_label, y_pred_1)
-print(f"New_AUC: {auc:.4f}")
+auc_1 = roc_auc_score(test_label, y_pred_1)
+print(f"AUC_with_regularization: {auc_1:.4f}")
+
+#Logistic regression without regularization
+theta1=logistic_regression_newton(train_data_flat/255,train_label_R)
+y_pred_2=predict_labels(test_data_flat/255,theta1)
+print("Confusion matrix without regularization")
+print(confusion_matrix(test_label, y_pred_2))
+print('Accuracy of logistic regression without regularization on test set: '+str(accuracy_score(test_label,y_pred_2)))
+print(" Classification report of logistic regression without regularization")
+print(classification_report(test_label,y_pred_2))
+# Compute AUC
+auc_2 = roc_auc_score(test_label, y_pred_2)
+print(f"AUC_without: {auc_2:.4f}")
+
+
+fpr_no_reg, tpr_no_reg, _ = roc_curve(test_label, y_pred_2)
+fpr_reg, tpr_reg, _ = roc_curve(test_label, y_pred_1)
+fpr_sklearn, tpr_sklearn, _ = roc_curve(test_label, y_pred)
+
+
+# Plot ROC Curves
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_no_reg, tpr_no_reg, label=f"No Regularization (AUC = {auc_2:.2f})")
+plt.plot(fpr_reg, tpr_reg, label=f"With Regularization (AUC = {auc_1:.2f})")
+plt.plot(fpr_sklearn, tpr_sklearn, label=f"Scikit-learn (AUC = {auc:.2f})")
+plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Random Guess")
+plt.xlabel("False Positive Rate (FPR)")
+plt.ylabel("True Positive Rate (TPR)")
+plt.title("ROC Curve Comparison")
+plt.legend()
+plt.grid()
+plt.show()
+
+
