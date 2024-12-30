@@ -9,28 +9,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, classification_report,accuracy_score, roc_curve,roc_auc_score
 from sklearn.preprocessing import MinMaxScaler
 
-# Load the BreastMNIST dataset
-#train_dataset = BreastMNIST(split='train', download=True)
-dataset = BreastMNIST(split='train')
-data = np.load('/Users/sammeng/.medmnist/breastmnist.npz')
-
-# for key in data.keys():
-#     print(f"Processing key: {key}")
-#     print(f"Data shape: {data[key].shape}")
-#     print(f"Data type: {data[key].dtype}")
-#For accessing dataset
-
-train_data=data["train_images"]
-val_data=data["val_images"]
-test_data=data["test_images"]
-train_label=data["train_labels"]
-val_label=data["val_labels"]
-test_label=data["test_labels"]
-#To flat it to fit the purpose of logistic regression
-train_data_flat = train_data.reshape(train_data.shape[0], -1)
-val_data_flat = val_data.reshape(val_data.shape[0], -1)       
-test_data_flat = test_data.reshape(test_data.shape[0], -1) 
-
 # sklearn functions implementation
 def logRegrPredict(x_train, y_train,xtest ):
     # Build Logistic Regression Model
@@ -40,18 +18,6 @@ def logRegrPredict(x_train, y_train,xtest ):
     y_pred= logreg.predict(xtest)
     #print('Accuracy on test set: {:.2f}'.format(logreg.score(x_test, y_test)))
     return y_pred
-scaler = MinMaxScaler()
-train_data_flat=scaler.fit_transform(train_data_flat)
-test_data_flat=scaler.transform(test_data_flat)
-y_pred = logRegrPredict(train_data_flat, train_label,test_data_flat)
-print(y_pred.shape)
-
-print(confusion_matrix(test_label, y_pred))
-print('Accuracy on test set: '+str(accuracy_score(test_label,y_pred)))
-print(classification_report(test_label,y_pred))
-# Compute AUC
-auc = roc_auc_score(test_label, y_pred)
-print(f"AUC: {auc:.4f}")
 
 # Sigmoid function
 def sigmoid(z):
@@ -133,7 +99,6 @@ def logistic_regression_regularized(x_train, label, max_iter=1000, tol=1e-6, lam
             break
 
     return theta
-train_label_R=train_label.ravel()
 
 # Function to predict labels
 def predict_labels(x, theta):
@@ -149,11 +114,40 @@ def predict_labels(x, theta):
     labels = (probabilities >= 0.5).astype(int)
 
     return labels
+# Load the BreastMNIST dataset
+#train_dataset = BreastMNIST(split='train', download=True)
+dataset = BreastMNIST(split='train')
+data = np.load('/Users/sammeng/.medmnist/breastmnist.npz')
+train_data=data["train_images"]
+val_data=data["val_images"]
+test_data=data["test_images"]
+train_label=data["train_labels"]
+val_label=data["val_labels"]
+test_label=data["test_labels"]
+#To flat it to fit the purpose of logistic regression
+train_data_flat = train_data.reshape(train_data.shape[0], -1)
+val_data_flat = val_data.reshape(val_data.shape[0], -1)       
+test_data_flat = test_data.reshape(test_data.shape[0], -1) 
+
+scaler = MinMaxScaler()
+train_data_flat=scaler.fit_transform(train_data_flat)
+test_data_flat=scaler.transform(test_data_flat)
+#Fet logistic regression using standard library approach
+y_pred = logRegrPredict(train_data_flat, train_label,test_data_flat)
+
+print(confusion_matrix(test_label, y_pred))
+print('Accuracy on test set: '+str(accuracy_score(test_label,y_pred)))
+print(classification_report(test_label,y_pred))
+# Compute AUC
+auc = roc_auc_score(test_label, y_pred)
+print(f"AUC: {auc:.4f}")
+
+#For the implemented logistic regression method both with and without regularization
+train_label_R=train_label.ravel()
 
 theta=logistic_regression_regularized(train_data_flat/255,train_label_R)
 y_pred_1=predict_labels(test_data_flat/255,theta)
-print(y_pred_1)
-print(y_pred_1.shape)
+
 print("New confusion matrix")
 print(confusion_matrix(test_label, y_pred_1))
 print('New accuracy on test set: '+str(accuracy_score(test_label,y_pred_1)))
