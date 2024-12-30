@@ -1,4 +1,4 @@
-#!/Users/sammeng/Downloads/Applied_machine_learning/AMLS_assignment24_25/.venv/bin/python3
+#!/Users/sammeng/Downloads/Applied_machine_learning/AMLS_assignment24_25/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
