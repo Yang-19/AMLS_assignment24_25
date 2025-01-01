@@ -1,13 +1,18 @@
 import medmnist
 from medmnist import BreastMNIST
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import confusion_matrix, classification_report,accuracy_score, roc_curve,roc_auc_score
+from sklearn.metrics import confusion_matrix, classification_report,accuracy_score, roc_curve,roc_auc_score,ConfusionMatrixDisplay
 from sklearn.preprocessing import MinMaxScaler
+from torchvision.transforms import Compose, ToTensor, Normalize
+
 
 # sklearn functions implementation
 def logRegrPredict(x_train, y_train,xtest ):
@@ -115,6 +120,103 @@ def predict_labels(x, theta):
 
     return labels
 # Load the BreastMNIST dataset
+
+#CNN part of the cw
+class BreastMNISTCNN(nn.Module):
+    def __init__(self):
+        super(BreastMNISTCNN, self).__init__()
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1),  # Conv Layer 1
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Pool Layer 1
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1),  # Conv Layer 2
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)  # Pool Layer 2
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Flatten(),  # Flatten the output of the conv layers
+            nn.Linear(64 * 7 * 7, 128),  # Fully Connected Layer 1
+            nn.ReLU(),
+            nn.Dropout(0.5),  # Dropout for regularization
+            nn.Linear(128, 1),  # Fully Connected Layer 2 (output layer)
+            nn.Sigmoid()  # Output probability
+        )
+
+    def forward(self, x):
+        x = self.conv_layers(x)
+        x = self.fc_layers(x)
+        return x
+
+# Initialize model
+model = BreastMNISTCNN()
+
+# Set device (GPU if available)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model.to(device)
+
+# Loss function and optimizer
+criterion = nn.BCELoss()  # Binary Cross-Entropy Loss for binary classification
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+# Training loop
+def train_model(model, train_loader, val_loader, epochs=20):
+    model.train()
+    for epoch in range(epochs):
+        train_loss = 0.0
+        correct = 0
+        total = 0
+
+        for images, labels in train_loader:
+            images, labels = images.to(device), labels.float().to(device)  # Move to GPU if available
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            train_loss += loss.item()
+            preds = (outputs >= 0.5).float()
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+
+        val_loss, val_accuracy, _, _, _ = evaluate_model(model, val_loader)
+
+        print(f"Epoch [{epoch+1}/{epochs}], "
+              f"Train Loss: {train_loss/len(train_loader):.4f}, "
+              f"Train Accuracy: {100 * correct/total:.2f}%, "
+              f"Validation Loss: {val_loss:.4f}, "
+              f"Validation Accuracy: {val_accuracy:.2f}%")
+
+# Validation loop
+def evaluate_model(model, loader):
+    model.eval()
+    val_loss = 0.0
+    correct = 0
+    total = 0
+    all_preds = []
+    all_labels = []
+    with torch.no_grad():
+        for images, labels in loader:
+            images, labels = images.to(device), labels.float().to(device)
+            #labels = labels.unsqueeze(1)
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+            preds = (outputs >= 0.5).float()
+            correct += (preds == labels).sum().item()
+            total += labels.size(0)
+            all_preds.extend(preds.cpu().numpy())  # Collect predictions
+            all_labels.extend(labels.cpu().numpy())  # Collect true labels
+            report = classification_report(all_labels, all_preds, target_names=["Benign", "Malignant"], digits=4)
+    return val_loss / len(loader), 100 * correct / total,report, all_preds, all_labels
+
+def plot_confusion_matrix(labels, preds):
+    ConfusionMatrixDisplay.from_predictions(labels, preds, display_labels=["Benign", "Malignant"])
+    plt.title("Confusion Matrix")
+    plt.show()
+
+
+
 #train_dataset = BreastMNIST(split='train', download=True)
 dataset = BreastMNIST(split='train')
 data = np.load('/Users/sammeng/.medmnist/breastmnist.npz')
@@ -186,6 +288,31 @@ plt.ylabel("True Positive Rate (TPR)")
 plt.title("ROC Curve Comparison")
 plt.legend()
 plt.grid()
-plt.show()
+plt.show(block=False)
+
+#CNN method
+transform = Compose([ToTensor(), Normalize((0.5,), (0.5,))])
+# Load the BreastMNIST dataset
+train_dataset = BreastMNIST(split='train', download=True)
+# Load training, validation, and test sets
+train_data = BreastMNIST(split='train', transform=transform, download=True)
+val_data = BreastMNIST(split='val', transform=transform, download=True)
+test_data = BreastMNIST(split='test', transform=transform, download=True)
+dataset = BreastMNIST(split='train')
+train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
+test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
+
+# Train the model
+train_model(model, train_loader, val_loader, epochs=20)
+# Evaluate on test set
+test_loss, test_accuracy,report,all_preds,all_labels = evaluate_model(model, test_loader)
+print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
+
+# Print classification report
+print("Classification Report:\n")
+print(report)
 
 
+# Visualize confusion matrix
+plot_confusion_matrix(all_labels, all_preds)
