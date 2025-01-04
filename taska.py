@@ -159,7 +159,7 @@ criterion = nn.BCELoss()  # Binary Cross-Entropy Loss for binary classification
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop
-def train_model(model, train_loader, val_loader, epochs=20):
+def train_model(model, train_loader, val_loader, epochs=30):
     model.train()
     for epoch in range(epochs):
         train_loss = 0.0
@@ -304,7 +304,7 @@ val_loader = DataLoader(val_data, batch_size=32, shuffle=False)
 test_loader = DataLoader(test_data, batch_size=32, shuffle=False)
 
 # Train the model
-train_model(model, train_loader, val_loader, epochs=20)
+train_model(model, train_loader, val_loader, epochs=30)
 # Evaluate on test set
 test_loss, test_accuracy,report,all_preds,all_labels = evaluate_model(model, test_loader)
 print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_accuracy:.2f}%")
