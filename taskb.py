@@ -1,18 +1,14 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from pandas import *
-import pandas as pd
 from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
-from skimage.transform import resize
-from sklearn.metrics import confusion_matrix, classification_report,accuracy_score, roc_curve,roc_auc_score,ConfusionMatrixDisplay
-from medmnist import BloodMNIST
+from sklearn.metrics import confusion_matrix, classification_report,accuracy_score, roc_curve,ConfusionMatrixDisplay,auc
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from medmnist.info import INFO
-from sklearn.metrics import classification_report, accuracy_score,confusion_matrix, ConfusionMatrixDisplay,roc_curve, auc
 import numpy as np
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
