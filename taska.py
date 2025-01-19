@@ -13,7 +13,6 @@ from sklearn.metrics import confusion_matrix, classification_report,accuracy_sco
 from sklearn.preprocessing import MinMaxScaler
 from torchvision.transforms import Compose, ToTensor, Normalize
 
-
 # sklearn functions implementation
 def logRegrPredict(x_train, y_train,xtest ):
     # Build Logistic Regression Model
