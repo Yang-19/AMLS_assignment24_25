@@ -220,10 +220,6 @@ def plot_roc_curve(y_true, y_scores, num_classes):
     plt.show()
 
 
-
-
-
-
 data = np.load('/Users/sammeng/Downloads/Applied_machine_learning/bloodmnist_224.npz')
 
 train_data=data["train_images"]
