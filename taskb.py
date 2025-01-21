@@ -160,7 +160,7 @@ def train_model_with_scheduler(model, train_loader, val_loader, criterion, optim
         )
     """
     model = model.to(device)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=patience, factor=0.5, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=patience, factor=0.5)
     best_val_loss = float('inf')
     best_model_state = None
     train_losses = []
@@ -199,7 +199,7 @@ def train_model_with_scheduler(model, train_loader, val_loader, criterion, optim
         print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
 
         # Log learning rate
-        current_lr = optimizer.param_groups[0]['lr']
+        current_lr = scheduler.get_last_lr()[0]
         lr_history.append(current_lr)
         print(f"Learning Rate: {current_lr:.6f}")
 
