@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 from sklearn.preprocessing import label_binarize
 import os
 import json 
+import torch.optim.lr_scheduler as lr_scheduler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # functions for CNN
 # Check device
@@ -131,8 +133,146 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
     print("Training metrics saved to 'training_metrics.json'.")
     return train_losses, val_accuracies  # Return tracked metrics
 
+# New function for dynamically selecting epoch number and learning rate 
 
+def train_model_with_scheduler(model, train_loader, val_loader, criterion, optimizer, max_epochs=50, patience=5,save_path="best_model.pth"):
+    """
+    Train a neural network model using a learning rate scheduler to dynamically adjust learning rates.
 
+    Parameters:
+        model (torch.nn.Module): The neural network model to be trained.
+        train_loader (DataLoader): DataLoader for the training dataset.
+        val_loader (DataLoader): DataLoader for the validation dataset.
+        criterion (torch.nn.Module): Loss function used for training (e.g., CrossEntropyLoss).
+        optimizer (torch.optim.Optimizer): Optimizer used for updating model weights (e.g., Adam).
+        max_epochs (int, optional): Maximum number of training epochs. Default is 50.
+        patience (int, optional): Number of epochs to wait for validation loss improvement before reducing the learning rate. Default is 5.
+
+    Returns:
+        tuple: A tuple containing:
+            - train_losses (list of float): Training loss for each epoch.
+            - val_losses (list of float): Validation loss for each epoch.
+            - lr_history (list of float): Learning rate for each epoch.
+
+    Example:
+        train_losses, val_losses, lr_history = train_model_with_scheduler(
+            model, train_loader, val_loader, criterion, optimizer, max_epochs=50, patience=5
+        )
+    """
+    model = model.to(device)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=patience, factor=0.5, verbose=True)
+    best_val_loss = float('inf')
+    best_model_state = None
+    train_losses = []
+    val_losses = []
+    lr_history = []
+
+    for epoch in range(max_epochs):
+        model.train()
+        running_loss = 0.0
+        for inputs, labels, *_ in train_loader:
+            inputs, labels = inputs.to(device), labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        avg_train_loss = running_loss / len(train_loader)
+        train_losses.append(avg_train_loss)
+
+        # Validation
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for inputs, labels in val_loader:
+                inputs, labels = inputs.to(device), labels.to(device)
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+
+        avg_val_loss = val_loss / len(val_loader)
+        val_losses.append(avg_val_loss)
+
+        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+
+        # Log learning rate
+        current_lr = optimizer.param_groups[0]['lr']
+        lr_history.append(current_lr)
+        print(f"Learning Rate: {current_lr:.6f}")
+
+        # Adjust learning rate
+        scheduler.step(avg_val_loss)
+
+        # Save the best model
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            torch.save(model.state_dict(), save_path)  # Save the best model to path
+            print(f"Best model saved with validation loss: {best_val_loss:.4f}")
+
+    # Load the best model state
+    model.load_state_dict(torch.load(save_path))
+     # Save metrics to a JSON file
+    metrics = {"train_losses": train_losses, "val_accuracies": val_accuracies,"lr_history": lr_history}
+    with open("training_metrics_new.json", "w") as f:
+        json.dump(metrics, f)
+    print("Training metrics saved to 'training_metrics.json'.")
+    return train_losses, val_losses, lr_history
+
+# A modified functiono to trian and call new models
+
+def train_and_evaluate(model, train_loader, val_loader, test_loader, criterion, optimizer, max_epochs, patience, model_path, metrics_path, is_new_model=False):
+    """
+    Train and evaluate a model. If a pre-trained model exists, skip training and load metrics.
+
+    Parameters:
+        model (torch.nn.Module): The neural network model to train/evaluate.
+        train_loader, val_loader, test_loader: DataLoader for train, validation, and test datasets.
+        criterion (torch.nn.Module): Loss function.
+        optimizer (torch.optim.Optimizer): Optimizer for training.
+        max_epochs (int): Maximum epochs for training.
+        patience (int): Patience for learning rate scheduler.
+        model_path (str): Path to save/load the model.
+        metrics_path (str): Path to save/load the training metrics.
+        is_new_model (bool): Flag for differentiating new vs original models in output/logs.
+
+    Returns:
+        tuple: (y_true, y_pred, y_scores, train_losses, val_accuracies, lr_history)
+    """
+    model_name = "new" if is_new_model else "original"
+    if not os.path.exists(model_path):
+        print(f"No pre-trained {model_name} model found. Training a new model...")
+        train_losses, val_accuracies, lr_history = train_model_with_scheduler(
+            model, train_loader, val_loader, criterion, optimizer, max_epochs=max_epochs, patience=patience
+        )
+        torch.save(model.state_dict(), model_path)
+        metrics = {
+            "train_losses": train_losses,
+            "val_accuracies": val_accuracies,
+            "lr_history": lr_history,
+        }
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f)
+        print(f"{model_name.capitalize()} model and metrics saved.")
+    else:
+        print(f"Pre-trained {model_name} model found. Skipping training...")
+        model.load_state_dict(torch.load(model_path))
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r") as f:
+                metrics = json.load(f)
+            train_losses = metrics.get("train_losses", [])
+            val_accuracies = metrics.get("val_accuracies", [])
+            lr_history = metrics.get("lr_history", [])
+            print(f"Loaded {model_name} metrics.")
+        else:
+            train_losses, val_accuracies, lr_history = [], [], []
+            print(f"No {model_name} metrics found. Learning curves will not be plotted.")
+
+    print(f"Evaluating the {model_name} model...")
+    y_true, y_pred, y_scores = test_model(model, test_loader)
+    return y_true, y_pred, y_scores, train_losses, val_accuracies, lr_history
 # Test the model
 def test_model(model, test_loader):
     model.load_state_dict(torch.load("model.pth"))
@@ -215,6 +355,23 @@ def plot_roc_curve(y_true, y_scores, num_classes):
     plt.legend(loc='lower right')
     plt.show()
 
+def plot_learning_rate(lr_history):
+    """
+    Plot the learning rate vs. epoch number.
+
+    Parameters:
+        lr_history (list of float): Learning rate for each epoch.
+    """
+    epochs = range(1, len(lr_history) + 1)
+    plt.figure(figsize=(8, 5))
+    plt.plot(epochs, lr_history, label="Learning Rate", marker='o')
+    plt.xlabel("Epochs")
+    plt.ylabel("Learning Rate")
+    plt.title("Learning Rate vs. Epochs")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
 
 data = np.load('/Users/sammeng/Downloads/Applied_machine_learning/bloodmnist_224.npz')
 
@@ -278,47 +435,55 @@ print("\nClassification Report:")
 print(classification_report(test_label, y_pred_1))
 
 
-# Model, loss, optimizer
-model = AdvancedCNN(num_classes=num_classes)
+# Main Script
+# Original Model
+model1 = AdvancedCNN(num_classes=num_classes)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-train_losses, val_accuracies = [], []
-# Check if the model file already exists
-if not os.path.exists("model.pth"):
-    print("No pre-trained model found. Training a new model...")
-    train_losses, val_accuracies = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=20)
-else:
-    print("Pre-trained model found. Skipping training...")
-    # Load metrics if they exist
-    if os.path.exists("training_metrics.json"):
-        with open("training_metrics.json", "r") as f:
-            metrics = json.load(f)
-            train_losses = metrics.get("train_losses", [])
-            val_accuracies = metrics.get("val_accuracies", [])
-        print("Loaded training metrics from 'training_metrics.json'.")
-    else:
-        print("No training metrics found. Learning curve plot will be skipped.")
+optimizer = optim.Adam(model1.parameters(), lr=0.001)
+y_true, y_pred, y_scores, train_losses, val_accuracies, _ = train_and_evaluate(
+    model1, train_loader, val_loader, test_loader, criterion, optimizer, max_epochs=20, patience=5,
+    model_path="model.pth", metrics_path="training_metrics.json", is_new_model=False
+)
 
-# Load the model and proceed to testing and evaluation
-print("Loading the saved model...")
-model.load_state_dict(torch.load("model.pth"))
+# New Model with Scheduler
+model2 = AdvancedCNN(num_classes=num_classes)
+criterion = nn.CrossEntropyLoss()
+optimizer_new = optim.Adam(model2.parameters(), lr=0.001)
+y_true_new, y_pred_new, y_scores_new, train_losses_new, val_accuracies_new, lr_history = train_and_evaluate(
+    model2, train_loader, val_loader, test_loader, criterion, optimizer_new, max_epochs=50, patience=5,
+    model_path="model_new.pth", metrics_path="training_metrics_new.json", is_new_model=True
+)
 
-# If training was skipped, warn the user that no learning curve will be plotted
-if not train_losses:
-    print("Skipping learning curve plot as training was not performed.")
-# If training metrics are available, plot the learning curves
-if train_losses and val_accuracies:
-    plot_learning_curves(train_losses, val_accuracies)
-else:
-    print("No training metrics available to plot learning curves.")
-# Test the model
-y_true, y_pred, y_scores = test_model(model, test_loader)
+# Plot Comparisons
+if train_losses and train_losses_new:
+    plt.figure(figsize=(12, 5))
 
-# Plot confusion matrix
-class_names = [str(i) for i in range(num_classes)]  # Replace with actual class names if available
+    # Training Loss Comparison
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label="Original Model", marker='o')
+    plt.plot(train_losses_new, label="New Model", marker='x')
+    plt.xlabel("Epochs")
+    plt.ylabel("Training Loss")
+    plt.title("Training Loss Comparison")
+    plt.legend()
+
+    # Validation Accuracy Comparison
+    plt.subplot(1, 2, 2)
+    plt.plot(val_accuracies, label="Original Model", marker='o')
+    plt.plot(val_accuracies_new, label="New Model", marker='x')
+    plt.xlabel("Epochs")
+    plt.ylabel("Validation Accuracy")
+    plt.title("Validation Accuracy Comparison")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
+class_names = [str(i) for i in range(num_classes)] 
+# Confusion Matrix Comparison
 plot_confusion_matrix(y_true, y_pred, class_names)
-# Plot ROC curve
+plot_confusion_matrix(y_true_new, y_pred_new, class_names)
+
+# ROC Curve Comparison
+plt.figure(figsize=(10, 7))
 plot_roc_curve(y_true, y_scores, num_classes)
-
-
-
+plot_roc_curve(y_true_new, y_scores_new, num_classes)
