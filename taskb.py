@@ -192,11 +192,17 @@ def train_model_with_scheduler(model, train_loader, val_loader, criterion, optim
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
+                # Calculate validation accuracy
+                _, preds = torch.max(outputs, 1)
+                total += labels.size(0)
+                correct += (preds == labels).sum().item()
 
         avg_val_loss = val_loss / len(val_loader)
         val_losses.append(avg_val_loss)
+        val_accuracy = correct / total
+        val_accuracies.append(val_accuracy)
 
-        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
 
         # Log learning rate
         current_lr = scheduler.get_last_lr()[0]
