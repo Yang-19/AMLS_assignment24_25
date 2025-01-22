@@ -192,17 +192,11 @@ def train_model_with_scheduler(model, train_loader, val_loader, criterion, optim
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
-                # Calculate validation accuracy
-                _, preds = torch.max(outputs, 1)
-                total += labels.size(0)
-                correct += (preds == labels).sum().item()
 
         avg_val_loss = val_loss / len(val_loader)
         val_losses.append(avg_val_loss)
-        val_accuracy = correct / total
-        val_accuracies.append(val_accuracy)
 
-        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}")
+        print(f"Epoch {epoch+1}, Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
 
         # Log learning rate
         current_lr = scheduler.get_last_lr()[0]
@@ -217,6 +211,15 @@ def train_model_with_scheduler(model, train_loader, val_loader, criterion, optim
             best_val_loss = avg_val_loss
             torch.save(model.state_dict(), save_path)  # Save the best model to path
             print(f"Best model saved with validation loss: {best_val_loss:.4f}")
+            epochs_no_improve = 0  # Reset counter if validation loss improves
+        else:
+            epochs_no_improve += 1
+            print(f"No improvement in validation loss for {epochs_no_improve} epoch(s).")
+
+        # Stop training if no improvement for `patience` epochs
+        if epochs_no_improve >= patience:
+            print(f"Early stopping triggered after {epoch+1} epochs.")
+            break
 
     # Load the best model state
     model.load_state_dict(torch.load(save_path))
