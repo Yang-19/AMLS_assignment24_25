@@ -16,7 +16,7 @@ from torchvision.transforms import Compose, ToTensor, Normalize
 # sklearn functions implementation
 def logRegrPredict(x_train, y_train,xtest ):
     # Build Logistic Regression Model
-    logreg = LogisticRegression(solver='newton-cholesky')
+    logreg = LogisticRegression(solver='lbfgs')
     # Train the model using the training sets
     logreg.fit(x_train, y_train)
     y_pred= logreg.predict(xtest)
