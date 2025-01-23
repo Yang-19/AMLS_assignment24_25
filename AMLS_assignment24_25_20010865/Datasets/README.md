@@ -1,0 +1,1 @@
+This is to avoid this folder to be empty
